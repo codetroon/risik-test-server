@@ -1,0 +1,57 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: crm
+      POSTGRES_PASSWORD: crm
+      POSTGRES_DB: election_crm
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  pg_admin:
+    image: dpage/pgadmin4
+    ports:
+      - "5500:5500"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@gmail.com
+      PGADMIN_DEFAULT_PASSWORD: password
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      - postgres
+
+  redis:
+    image: redis:7-alpine
+    # AOF persistence so rate-limit blocks and reset tokens survive a restart;
+    # requirepass because Redis holds reset tokens (compose reads .env for the value)
+    command: redis-server --appendonly yes --requirepass "${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}"
+    ports:
+      # Loopback-only: not reachable from the LAN
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redisdata:/data
+
+  redis_insight:
+    image: redis/redisinsight:latest
+    ports:
+      # UI at http://localhost:5540 (loopback-only, like Redis itself)
+      - "127.0.0.1:5540:5540"
+    environment:
+      # Pre-register the project Redis so it appears in the UI without manual setup
+      RI_REDIS_HOST: redis
+      RI_REDIS_PORT: 6379
+      RI_REDIS_PASSWORD: "${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}"
+      RI_REDIS_ALIAS: risik-crm
+    volumes:
+      - redisinsight_data:/data
+    depends_on:
+      - redis
+
+
+volumes:
+  pgdata:
+  pgadmin_data:
+  redisdata:
+  redisinsight_data:

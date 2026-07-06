@@ -1,0 +1,53 @@
+enum Role {
+  super_admin
+  admin
+  researcher
+  officer
+}
+
+enum UserStatus {
+  pending_approval
+  active
+  deactivated
+  banned
+}
+
+model User {
+  id            String     @id
+  name          String
+  email         String
+  emailVerified Boolean    @default(false)
+  image         String?
+  passwordHash  String?
+  role          Role       @default(officer)
+  status        UserStatus @default(active)
+  phone            String?
+  phoneVerified    Boolean    @default(false)
+  deviceLimit      Int        @default(3)
+  twoFactorEnabled Boolean    @default(true)
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  deletedAt        DateTime?
+  sessions         Session[]
+  documents        Document[]
+
+  @@unique([email])
+  @@index([deletedAt])
+  @@map("user")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([token])
+  @@index([userId])
+  @@map("session")
+}

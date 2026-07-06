@@ -1,0 +1,30 @@
+{
+  "version": "2.0.0",
+  "darkMode": true,
+  "gridEnabling": false,
+  "currentViewName": null,
+  "defaultView": {
+    "detailLevel": "All",
+    "tablePositions": [
+      {
+        "name": "users",
+        "schemaName": "public",
+        "x": 18.05299068186879,
+        "y": 49.99999999999994
+      },
+      {
+        "name": "user_sessions",
+        "schemaName": "public",
+        "x": 437.4357261358383,
+        "y": -68.50020352486004
+      },
+      {
+        "name": "states",
+        "schemaName": "public",
+        "x": 412.06200987526455,
+        "y": 389.1531681303594
+      }
+    ]
+  },
+  "views": {}
+}

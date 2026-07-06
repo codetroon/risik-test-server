@@ -1,0 +1,35 @@
+enum DocumentStatus {
+  pending
+  active
+  archived
+}
+
+model Document {
+  id           String         @id
+  title        String
+  category     String?
+  state        String?
+  district     String?
+  documentType String?
+  notes        String?
+  status       DocumentStatus @default(pending)
+  documentDate DateTime?
+
+  // Stored file metadata (file bytes live on disk under UPLOAD_DIR).
+  originalName String
+  storedName   String
+  mimeType     String
+  size         Int
+  storagePath  String
+
+  uploadedById String
+  uploadedBy   User   @relation(fields: [uploadedById], references: [id], onDelete: Cascade)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([uploadedById])
+  @@index([deletedAt])
+  @@map("document")
+}

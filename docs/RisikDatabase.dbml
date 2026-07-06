@@ -1,0 +1,71 @@
+// ============================================
+// AUTHENTICATION & USER MANAGEMENT
+// ============================================
+enum Role {
+  super_admin
+  admin
+  officer
+  researcher
+}
+
+enum UserStatus {
+  active
+  inactive
+  suspended
+  pending
+}
+
+Table users {
+  id UUID [pk, default: `uuid_generate_v4()`]
+  email varchar(255) [unique, not null]
+  password varchar(255) [not null, note: 'Hashed password using Argon2']
+  role Role [default: 'user', not null]
+  full_name varchar(255) [not null]
+  phone varchar(20) [unique]
+  assigned_state UUID [ref: > states.id, note: 'State assigned to the user for access control']
+  status UserStatus [default: 'pending']
+  profile_image varchar(500)
+  email_verified boolean [default: false]
+  two_factor_enabled boolean [default: true, note: 'Mandatory for super_admin and admin roles']
+  password_changed_at timestamp
+  created_by UUID [ref: > users.id, note: 'Super Admin or Admin who created this user']
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+
+  indexes {
+    email
+    status
+    assigned_state
+  }
+}
+
+
+Table user_sessions {
+  id UUID [pk, default: `uuid_generate_v4()`]
+  user_id UUID [not null, ref: > users.id]
+  ip_address varchar(50)
+  user_agent text
+  refresh_token varchar(500) [unique]
+  two_factor_verified boolean [default: false, note: 'Whether 2FA step was completed for this session']
+  last_login_at timestamp
+  created_at timestamp [default: `now()`]
+  expires_at timestamp [not null]
+
+  indexes {
+    user_id
+    refresh_token
+  }
+}
+
+Table states {
+  id UUID [pk, default: `uuid_generate_v4()`]
+  name varchar(100) [unique, not null]
+  abbreviation varchar(10) [unique, not null]
+  created_at timestamp [default: `now()`]
+  updated_at timestamp [default: `now()`]
+
+  indexes {
+    name
+    abbreviation
+  }
+}
