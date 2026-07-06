@@ -20,8 +20,13 @@ const schema = z.object({
   /** Access-token lifetime, e.g. "15m", "7d". */
   JWT_ACCESS_EXPIRES_IN: z.string().default("7d"),
 
-  /** Directory (relative to server root) where uploaded documents are stored. */
+  /** Directory (relative to server root) for the legacy on-disk file fallback. */
   UPLOAD_DIR: z.string().default("uploads"),
+
+  /** Cloudinary credentials — document files are stored there (resource_type "raw"). */
+  CLOUDINARY_CLOUD_NAME: z.string().optional(),
+  CLOUDINARY_API_KEY: z.string().optional(),
+  CLOUDINARY_API_SECRET: z.string().optional(),
 });
 
 export const env = schema.parse(process.env);

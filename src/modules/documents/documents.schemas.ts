@@ -17,6 +17,18 @@ export const createDocumentSchema = z
 
 export type CreateDocumentInput = z.infer<typeof createDocumentSchema>;
 
+/**
+ * Body for registering a document whose file was uploaded directly to
+ * Cloudinary by the browser. The server verifies the `publicId` before saving.
+ */
+export const registerDocumentSchema = createDocumentSchema.extend({
+  publicId: z.string().min(1).meta({ example: 'risik-documents/abc123' }),
+  originalName: z.string().min(1).meta({ example: 'field-data.csv' }),
+  mimeType: z.string().default('application/octet-stream'),
+});
+
+export type RegisterDocumentInput = z.infer<typeof registerDocumentSchema>;
+
 export const listDocumentsQuerySchema = z.object({
   search: z.string().trim().optional(),
   state: z.string().trim().optional(),

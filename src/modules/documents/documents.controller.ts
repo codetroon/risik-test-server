@@ -1,38 +1,35 @@
 import path from 'node:path';
-import { createReadStream, promises as fs } from 'node:fs';
+import { createReadStream } from 'node:fs';
+import { Readable } from 'node:stream';
 import type { Request, Response } from 'express';
 import { DocumentsService } from './documents.service.js';
 import { responseHandler } from '../../shared/lib/responseHandler.js';
 import { ApiError } from '../../shared/errors/AppError.js';
-import type { CreateDocumentInput, ListDocumentsQuery } from './documents.schemas.js';
+import { signUpload } from '../../config/cloudinary.js';
+import type { ListDocumentsQuery, RegisterDocumentInput } from './documents.schemas.js';
 
 export class DocumentsController {
   constructor(private readonly service: DocumentsService = new DocumentsService()) {}
 
-  upload = async (req: Request, res: Response): Promise<void> => {
-    if (!req.file) {
-      throw new ApiError.BadRequest('A file is required');
-    }
+  /** Issue a signature so the browser can upload a file straight to Cloudinary. */
+  signature = (_req: Request, res: Response): void => {
+    responseHandler.ok(res, signUpload());
+  };
 
-    // Only CSV / XLSX are accepted. Reject (and clean up) anything else.
+  /**
+   * Register a document whose file was uploaded directly to Cloudinary by the
+   * browser. Only CSV/XLSX are accepted; the file is verified in the service.
+   */
+  register = async (req: Request, res: Response): Promise<void> => {
+    const body = req.body as RegisterDocumentInput;
+
     const ALLOWED_EXT = ['.csv', '.xlsx'];
-    const ext = path.extname(req.file.originalname).toLowerCase();
+    const ext = path.extname(body.originalName).toLowerCase();
     if (!ALLOWED_EXT.includes(ext)) {
-      await fs.unlink(req.file.path).catch(() => {});
       throw new ApiError.BadRequest('Only CSV or XLSX files are supported');
     }
 
-    const doc = await this.service.create(
-      req.body as CreateDocumentInput,
-      {
-        originalName: req.file.originalname,
-        storedName: req.file.filename,
-        mimeType: req.file.mimetype,
-        size: req.file.size,
-        storagePath: req.file.path,
-      },
-      req.auth!.id,
-    );
+    const doc = await this.service.registerUploaded(body, req.auth!.id);
     responseHandler.created(res, doc);
   };
 
@@ -54,9 +51,22 @@ export class DocumentsController {
     const filename = encodeURIComponent(doc.originalName);
 
     res.setHeader('Content-Type', doc.mimeType);
-    res.setHeader('Content-Length', doc.size);
     res.setHeader('Content-Disposition', `${disposition}; filename*=UTF-8''${filename}`);
 
+    // Cloudinary-backed files have an http(s) storagePath; proxy them through
+    // this authenticated endpoint so the raw URL is never exposed to clients.
+    if (/^https?:\/\//.test(doc.storagePath)) {
+      const upstream = await fetch(doc.storagePath);
+      if (!upstream.ok || !upstream.body) {
+        throw new ApiError.NotFound('File is no longer available');
+      }
+      res.setHeader('Content-Length', doc.size);
+      Readable.fromWeb(upstream.body as Parameters<typeof Readable.fromWeb>[0]).pipe(res);
+      return;
+    }
+
+    // Legacy on-disk fallback (records created before Cloudinary).
+    res.setHeader('Content-Length', doc.size);
     createReadStream(path.resolve(doc.storagePath)).pipe(res);
   };
 

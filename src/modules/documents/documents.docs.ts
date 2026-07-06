@@ -5,7 +5,8 @@ import {
   paginatedResponse,
   errorResponse,
 } from '../../shared/docs/openapi.helpers.js';
-import { documentSchema } from './documents.schemas.js';
+import { documentSchema, registerDocumentSchema } from './documents.schemas.js';
+import { jsonBody } from '../../shared/docs/openapi.helpers.js';
 
 const TAG = 'Documents';
 
@@ -25,34 +26,27 @@ export const documentsDocs: ModuleDocs = {
       },
       post: {
         tags: [TAG],
-        summary: 'Upload a document (multipart/form-data)',
-        operationId: 'uploadDocument',
+        summary: 'Register a document uploaded directly to Cloudinary',
+        operationId: 'registerDocument',
         security: [bearerAuth],
-        requestBody: {
-          required: true,
-          content: {
-            'multipart/form-data': {
-              schema: {
-                type: 'object',
-                required: ['title', 'file'],
-                properties: {
-                  file: { type: 'string', format: 'binary' },
-                  title: { type: 'string' },
-                  category: { type: 'string' },
-                  state: { type: 'string' },
-                  district: { type: 'string' },
-                  documentType: { type: 'string' },
-                  notes: { type: 'string' },
-                  documentDate: { type: 'string' },
-                },
-              },
-            },
-          },
-        },
+        requestBody: jsonBody(registerDocumentSchema, 'Metadata + Cloudinary publicId'),
         responses: {
           '201': successResponse(documentSchema, 'Document created'),
-          '400': errorResponse('Missing file or invalid metadata'),
+          '400': errorResponse('Invalid metadata or upload reference'),
           '401': errorResponse('Not authenticated'),
+        },
+      },
+    },
+    '/documents/signature': {
+      post: {
+        tags: [TAG],
+        summary: 'Get a signature for a direct browser upload to Cloudinary',
+        operationId: 'getUploadSignature',
+        security: [bearerAuth],
+        responses: {
+          '200': { description: 'Signed upload parameters' },
+          '401': errorResponse('Not authenticated'),
+          '503': errorResponse('Cloudinary not configured'),
         },
       },
     },

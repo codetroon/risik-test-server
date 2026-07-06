@@ -2,7 +2,19 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { prisma } from '../../db/prisma.js';
 import { ApiError } from '../../shared/errors/AppError.js';
-import type { CreateDocumentInput, DocumentDto, ListDocumentsQuery } from './documents.schemas.js';
+import {
+  destroyRaw,
+  getRawResource,
+  isCloudinaryConfigured,
+  DOCUMENTS_FOLDER,
+} from '../../config/cloudinary.js';
+import { logger } from '../../shared/lib/logger.js';
+import type {
+  CreateDocumentInput,
+  DocumentDto,
+  ListDocumentsQuery,
+  RegisterDocumentInput,
+} from './documents.schemas.js';
 import type { Prisma } from '../../generated/prisma/client.js';
 
 type DocumentWithUploader = Prisma.DocumentModel & {
@@ -67,6 +79,39 @@ export class DocumentsService {
     return toDto(doc);
   }
 
+  /**
+   * Persist a document whose file the browser uploaded directly to Cloudinary.
+   * The `publicId` is verified against Cloudinary (existence + folder) and the
+   * authoritative size/URL are read from there — the client can't spoof them.
+   */
+  async registerUploaded(
+    input: RegisterDocumentInput,
+    uploadedById: string,
+  ): Promise<DocumentDto> {
+    if (!input.publicId.startsWith(`${DOCUMENTS_FOLDER}/`)) {
+      throw new ApiError.BadRequest('Invalid upload reference');
+    }
+
+    let resource: { secure_url: string; bytes: number };
+    try {
+      resource = await getRawResource(input.publicId);
+    } catch {
+      throw new ApiError.BadRequest('Uploaded file was not found in storage');
+    }
+
+    return this.create(
+      input,
+      {
+        originalName: input.originalName,
+        storedName: input.publicId,
+        mimeType: input.mimeType,
+        size: resource.bytes,
+        storagePath: resource.secure_url,
+      },
+      uploadedById,
+    );
+  }
+
   /** List non-deleted documents with optional filters + pagination. */
   async list(query: ListDocumentsQuery): Promise<{ items: DocumentDto[]; total: number }> {
     const where: Prisma.DocumentWhereInput = {
@@ -113,11 +158,15 @@ export class DocumentsService {
       data: { deletedAt: new Date(), status: 'archived' },
     });
 
-    // Best-effort file cleanup — a missing file must not fail the delete.
+    // Best-effort file cleanup — a missing/failed asset must not fail the delete.
     try {
-      await fs.unlink(path.resolve(doc.storagePath));
-    } catch {
-      /* file already gone — ignore */
+      if (/^https?:\/\//.test(doc.storagePath)) {
+        if (isCloudinaryConfigured) await destroyRaw(doc.storedName);
+      } else {
+        await fs.unlink(path.resolve(doc.storagePath)); // legacy on-disk record
+      }
+    } catch (err) {
+      logger.warn({ err, documentId: id }, 'Failed to remove stored file during delete');
     }
   }
 }
