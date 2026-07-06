@@ -21,7 +21,28 @@ app.set('trust proxy', env.TRUST_PROXY);
 app.use(requestId);
 
 app.use(helmet());
-app.use(cors({ origin: env.FRONTEND_ORIGIN, credentials: true }));
+
+// CORS allowlist — FRONTEND_ORIGIN may be a comma-separated list of origins
+// (e.g. local dev + the deployed frontend). Trailing slashes are ignored.
+const allowedOrigins = env.FRONTEND_ORIGIN
+  .split(",")
+  .map((o) => o.trim().replace(/\/+$/, ""))
+  .filter(Boolean);
+
+app.use(
+  cors({
+    origin(origin, callback) {
+      // Allow non-browser requests (curl, health checks) which have no Origin.
+      if (!origin || allowedOrigins.includes(origin.replace(/\/+$/, ""))) {
+        callback(null, true);
+      } else {
+        callback(new Error(`Origin ${origin} is not allowed by CORS`));
+      }
+    },
+    credentials: true,
+  }),
+);
+
 app.use(express.json({ limit: "16kb" }));
 
 // Request logging (includes requestId in every log line)
